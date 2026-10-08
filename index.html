@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9 Attacks — Host</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a; color: #f1f5f9;
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    }
+    /* HEADER */
+    .header {
+      background: #1e293b; border-bottom: 1px solid #334155;
+      padding: 0.5rem 1rem; display: flex; align-items: center; gap: 0.75rem;
+      flex-shrink: 0;
+    }
+    .header h1 { font-size: 1rem; font-weight: 700; }
+    .ntfy-status {
+      margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.6rem;
+      border-radius: 4px; background: #334155; color: #94a3b8;
+    }
+    .ntfy-status.ok { background: #14532d; color: #4ade80; }
+    /* MAIN */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* LEFT — BOARD */
+    .board-panel {
+      flex: 0 0 auto; padding: 0.75rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      border-right: 1px solid #334155; overflow-y: auto;
+    }
+    .board-grid {
+      display: grid; grid-template-columns: repeat(5, 72px); gap: 3px;
+    }
+    .bh {
+      background: #1e3a5f; border: 1px solid #2d5a8e; border-radius: 4px;
+      padding: 4px 2px; font-size: 0.55rem; font-weight: 700; text-align: center;
+      color: #93c5fd; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .bc {
+      background: #1e3a8a; border: 1px solid #2d5a8e; border-radius: 4px;
+      padding: 8px 2px; text-align: center; font-size: 1rem; font-weight: 800;
+      color: #fbbf24; cursor: pointer; transition: background 0.12s; user-select: none;
+    }
+    .bc:hover { background: #2d4ed8; }
+    .bc.used { background: #1e293b; color: #334155; cursor: default; border-color: #1e293b; }
+    .bc.sel { background: #7c3aed; border-color: #a78bfa; color: white; }
+    .game-btns { display: flex; gap: 0.4rem; }
+    .btn-sm {
+      flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #334155;
+      border-radius: 5px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
+      background: #1e293b; color: #94a3b8;
+    }
+    .btn-sm:hover { background: #334155; }
+
+    /* RIGHT */
+    .right-panel {
+      flex: 1; display: flex; flex-direction: column; gap: 0.6rem;
+      padding: 0.75rem; overflow-y: auto;
+    }
+
+    /* QUESTION PANEL */
+    .qpanel {
+      background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+      padding: 0.85rem; flex-shrink: 0;
+    }
+    .qp-placeholder { color: #475569; font-size: 0.85rem; text-align: center; padding: 0.5rem; }
+    .qp-header { font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; }
+    .qp-text {
+      font-size: 0.85rem; line-height: 1.5; color: #e2e8f0;
+      max-height: 100px; overflow-y: auto; margin-bottom: 0.75rem;
+      padding-right: 4px;
+    }
+    .opts-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.6rem;
+    }
+    .opt {
+      background: #0f172a; border: 1px solid #334155; border-radius: 5px;
+      padding: 0.35rem 0.5rem; font-size: 0.78rem; display: flex; gap: 0.3rem; align-items: flex-start;
+    }
+    .opt .ltr { font-weight: 800; color: #475569; flex-shrink: 0; }
+    .opt .otxt { color: #94a3b8; }
+    .opt.correct { background: #14532d; border-color: #16a34a; }
+    .opt.correct .ltr { color: #4ade80; }
+    .opt.correct .otxt { color: #dcfce7; }
+    .def-box {
+      background: #0f172a; border-left: 3px solid #3b82f6;
+      padding: 0.35rem 0.6rem; font-size: 0.78rem; color: #93c5fd;
+      border-radius: 0 4px 4px 0; margin-bottom: 0.6rem;
+    }
+    .def-label { font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+    .ctrl-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .btn {
+      padding: 0.35rem 0.7rem; border: none; border-radius: 5px;
+      cursor: pointer; font-size: 0.78rem; font-weight: 600;
+    }
+    .btn-showq { background: #1d4ed8; color: white; }
+    .btn-showq:hover { background: #2563eb; }
+    .btn-showq.active { background: #7c3aed; }
+    .btn-showa { background: #b45309; color: white; }
+    .btn-showa:hover { background: #d97706; }
+    .btn-showa.active { background: #7c3aed; }
+    .btn-used { background: #334155; color: #94a3b8; }
+    .btn-used:hover { background: #475569; }
+    .btn-clear { background: #1e293b; border: 1px solid #334155; color: #64748b; }
+    .btn-clear:hover { background: #334155; }
+
+    /* BUZZ PANEL */
+    .buzz-panel {
+      background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+      padding: 0.65rem 0.85rem; flex-shrink: 0;
+    }
+    .panel-title { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+    .buzz-disp {
+      background: #0f172a; border-radius: 5px; padding: 0.5rem 0.7rem;
+      min-height: 2.2rem; font-size: 0.95rem; font-weight: 700;
+      color: #fbbf24; display: flex; align-items: center; margin-bottom: 0.4rem;
+    }
+    .buzz-disp.empty { color: #334155; font-size: 0.8rem; font-weight: 400; }
+    .judge-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .btn-right { background: #15803d; color: white; }
+    .btn-right:hover { background: #16a34a; }
+    .btn-wrong { background: #991b1b; color: white; }
+    .btn-wrong:hover { background: #dc2626; }
+    .btn-rbuzz { background: #1e293b; border: 1px solid #334155; color: #64748b; }
+    .btn-rbuzz:hover { background: #334155; }
+
+    /* TEAMS PANEL */
+    .teams-panel {
+      background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+      padding: 0.65rem 0.85rem; flex-shrink: 0;
+    }
+    .teams-list { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.35rem; }
+    .team-row { display: flex; align-items: center; gap: 0.4rem; }
+    .t-name {
+      flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 4px;
+      color: #f1f5f9; padding: 0.28rem 0.5rem; font-size: 0.82rem;
+    }
+    .t-score {
+      width: 72px; background: #0f172a; border: 1px solid #334155; border-radius: 4px;
+      color: #fbbf24; padding: 0.28rem 0.5rem; font-size: 0.85rem; font-weight: 700;
+      text-align: right;
+    }
+    .t-del {
+      background: none; border: none; color: #475569; cursor: pointer;
+      font-size: 1rem; padding: 0 4px; line-height: 1;
+    }
+    .t-del:hover { color: #ef4444; }
+    .btn-add-team {
+      width: 100%; background: #0f172a; border: 1px dashed #334155;
+      color: #475569; border-radius: 4px; padding: 0.28rem; cursor: pointer; font-size: 0.78rem;
+    }
+    .btn-add-team:hover { border-color: #64748b; color: #94a3b8; }
+
+    /* BUZZ HIGHLIGHT */
+    .team-row.buzzed .t-name { border-color: #fbbf24; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔐 Chapter 9: Guess the Attack — Host</h1>
+  <span class="ntfy-status" id="ntfy-status">Connecting…</span>
+</div>
+
+<div class="main">
+  <!-- BOARD -->
+  <div class="board-panel">
+    <div class="board-grid" id="board-grid"></div>
+    <div class="game-btns">
+      <button class="btn-sm" onclick="newGame()">New Game</button>
+      <button class="btn-sm" onclick="resetScores()">Reset Scores</button>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-panel">
+
+    <!-- Question -->
+    <div class="qpanel" id="qpanel">
+      <div class="qp-placeholder" id="qp-ph">Click a board cell to select a question</div>
+      <div id="qp-content" style="display:none">
+        <div class="qp-header" id="qp-hdr"></div>
+        <div class="qp-text" id="qp-text"></div>
+        <div class="opts-grid" id="opts-grid"></div>
+        <div class="def-box">
+          <div class="def-label">Definition (textbook)</div>
+          <div id="qp-def"></div>
+        </div>
+        <div class="ctrl-row">
+          <button class="btn btn-showq" id="btn-showq" onclick="pushToDisplay('question')">Show Question</button>
+          <button class="btn btn-showa" id="btn-showa" onclick="pushToDisplay('answer')">Show Answer</button>
+          <button class="btn btn-used" onclick="markUsed()">Mark Used</button>
+          <button class="btn btn-clear" onclick="clearDisplay()">Clear Display</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buzz -->
+    <div class="buzz-panel">
+      <div class="panel-title">🔔 Buzz In</div>
+      <div class="buzz-disp empty" id="buzz-disp">Waiting…</div>
+      <div class="judge-row">
+        <button class="btn btn-right" onclick="judgeAnswer(true)">✓ Right</button>
+        <button class="btn btn-wrong" onclick="judgeAnswer(false)">✗ Wrong</button>
+        <button class="btn btn-rbuzz" onclick="resetBuzzers()">Reset Buzzers</button>
+      </div>
+    </div>
+
+    <!-- Teams -->
+    <div class="teams-panel">
+      <div class="panel-title">Teams &amp; Scores</div>
+      <div class="teams-list" id="teams-list"></div>
+      <button class="btn-add-team" onclick="addTeam()">+ Add Team</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════
+   QUESTION BANK
+════════════════════════════════════════════════ */
+const NTFY_URL = 'https://ntfy.sh/ch9attacks-agilitay-room1';
+const CATEGORIES = ['System Attacks','Social Engineering','Malware','Technical Attacks','Cyber Fraud & Extortion'];
+const POINTS = [100,200,300,400,500];
+
+const BOARD_DATA = {
+  'System Attacks': {
+    100: {
+      q: "In 2007–2008, a hacker named Albert Gonzalez typed specially crafted text into retail website login forms that tricked backend databases into surrendering all their stored records. He collected 130 million payment card numbers from TJ Maxx, Heartland Payment Systems, and others — the largest card theft in U.S. history at that time.",
+      opts: {A:"Password Cracking",B:"SQL Injection",C:"Buffer Overflow",D:"Zero-Day Attack"},
+      ans: "B",
+      def: "Malicious code is inserted in the place of a query to a database system."
+    },
+    200: {
+      q: "In 2015, two security researchers demonstrated from a laptop 10 miles away that they could remotely take over a 2014 Jeep Cherokee while it drove on the highway. They blasted the A/C, changed the radio, and ultimately cut the transmission — all through an unpatched flaw the manufacturer didn't know existed yet. Chrysler recalled 1.4 million vehicles.",
+      opts: {A:"Zero-Day Attack",B:"Hacking",C:"SQL Injection",D:"Man-in-the-Middle"},
+      ans: "A",
+      def: "Attack between the time a software vulnerability is discovered and a patch to fix the problem is released."
+    },
+    300: {
+      q: "In 2017, attackers spent 78 days moving quietly through Equifax's servers after finding an unpatched flaw in its web software. When done, they had collected the Social Security numbers, birth dates, addresses, and driver's license numbers of 147.5 million Americans. Equifax later agreed to pay $700 million to settle with the FTC.",
+      opts: {A:"Identity Theft",B:"Social Engineering",C:"Hacking",D:"Zero-Day Attack"},
+      ans: "C",
+      def: "Unauthorized access, modification, or use of a computer system or other electronic device."
+    },
+    400: {
+      q: "In January 2003, a 376-byte piece of code began spreading through the internet, exploiting a flaw in Microsoft SQL Server. Because it sent more data than the program's memory could hold, it overwrote areas containing instructions with its own code. It doubled in size every 8.5 seconds — infecting 75,000 machines in 10 minutes and crashing Bank of America's ATM network.",
+      opts: {A:"SQL Injection",B:"Buffer Overflow",C:"Man-in-the-Middle",D:"DoS Attack"},
+      ans: "B",
+      def: "Data is sent that exceeds computer capacity causing program instructions to be lost and replaced with attacker instructions."
+    },
+    500: {
+      q: "In 2008, a self-replicating program spread silently to Windows computers worldwide by exploiting an unpatched Microsoft flaw. By early 2009, it had taken control of up to 10 million machines — including UK Parliament computers and the French Navy's network — without their owners ever knowing. Each machine became an obedient soldier awaiting remote commands.",
+      opts: {A:"Hacking",B:"Worm",C:"Hijacking",D:"Ransomware"},
+      ans: "C",
+      def: "Gaining control of someone else's computer to carry out illicit activities without the user's knowledge."
+    }
+  },
+  'Social Engineering': {
+    100: {
+      q: "In 2009, a California man sent fake messages to 500,000 Facebook users claiming their accounts needed verification. Those who clicked were taken to a fake page that captured their real credentials. He then posted 27 million spam messages to friends' timelines over three months. He was sentenced to 30 months in federal prison.",
+      opts: {A:"Spamming",B:"Phishing",C:"Evil Twin",D:"Identity Theft"},
+      ans: "B",
+      def: "Posing as a legitimate company asking for verification type information: passwords, accounts, usernames."
+    },
+    200: {
+      q: "A Florida man was convicted after purchasing military veterans' names, Social Security numbers, and birth dates from dark-web markets. Using this information, he opened credit cards and personal loans in their names, charged them to the limits, and disappeared — leaving more than 1,200 veterans with ruined credit scores and years of disputes ahead of them.",
+      opts: {A:"Phishing",B:"Posing",C:"Identity Theft",D:"Masquerading"},
+      ans: "C",
+      def: "Assuming someone else's identity."
+    },
+    300: {
+      q: "In 2024, an Australian man was charged — and later jailed for more than 7 years — after setting up fake wireless hotspots at domestic airports and on flights, using the exact same network names as the airlines' own WiFi services. Passengers who connected were redirected to a fake login page that captured their real email and social media credentials.",
+      opts: {A:"Phishing",B:"Typosquatting",C:"Evil Twin",D:"Email Spoofing"},
+      ans: "C",
+      def: "A wireless network with the same SSID as a legitimate wireless access point."
+    },
+    400: {
+      q: "When Microsoft launched the Xbox gaming platform, a prankster registered the domain 'Micosoft.com' — missing one letter. Anyone who mistyped the URL landed on a page filled with adult content. Microsoft had to take legal action to reclaim it. Similar attacks have targeted PayPal (paypa1.com), Amazon (amozon.com), and Google (goggle.com).",
+      opts: {A:"Evil Twin",B:"Phishing",C:"Typosquatting",D:"Posing"},
+      ans: "C",
+      def: "Typographical errors when entering a Web site name cause an invalid site to be accessed."
+    },
+    500: {
+      q: "In 2023, a theft ring in Minneapolis was convicted after stealing more than $300,000 from victims. Members would position themselves in bars near iPhone users, watch them enter their passcodes, then steal the phones moments later. With the passcode, they changed the Apple ID password, disabled Face ID, and drained every bank account linked to Apple Pay — all before the victim noticed the phone was missing.",
+      opts: {A:"Eavesdropping",B:"Scavenging",C:"Shoulder Surfing",D:"Skimming"},
+      ans: "C",
+      def: "Snooping over someone's shoulder for sensitive information."
+    }
+  },
+  'Malware': {
+    100: {
+      q: "Japanese government officials announced that computers in the country's parliament had been infected after a politician opened an email attachment that appeared to be a routine document. The attachment contained hidden malicious code that spread quietly to other parliamentary computers and transmitted sensitive government documents to servers in China.",
+      opts: {A:"Virus",B:"Trojan Horse",C:"Worm",D:"Logic Bomb"},
+      ans: "B",
+      def: "Malicious computer instructions in an authorized and otherwise properly functioning program."
+    },
+    200: {
+      q: "In March 2018, hackers deployed malware that encrypted the City of Atlanta's computer systems. Employees were locked out of their accounts; residents couldn't pay water bills online or access court information. The attackers demanded $51,000 in Bitcoin to restore access. The city refused — and ended up spending at least $17 million on recovery.",
+      opts: {A:"Cyber Extortion",B:"Ransomware",C:"Trojan Horse",D:"Scareware"},
+      ans: "B",
+      def: "A type of cyber extortion where the software encrypts programs and data until a ransom is paid to remove the encryption."
+    },
+    300: {
+      q: "In 2021, investigators revealed that an Israeli company's product had been secretly installed on the phones of journalists, human rights activists, and heads of state in more than 50 countries. Without any action by the targets, it silently read their texts and emails, tracked their GPS location, and could remotely activate the microphone and camera — while appearing completely normal.",
+      opts: {A:"Spyware",B:"Adware",C:"Keylogger",D:"Rootkit"},
+      ans: "A",
+      def: "Secretly monitors and collects personal information about users and sends it to someone else."
+    },
+    400: {
+      q: "When your phone dies during a conference, a stranger offers you a USB wall charger to borrow. Unknown to you, the device contains hidden hardware that intercepts the wireless signals between your keyboard and its USB receiver, silently recording every keystroke you type — including all your banking passwords and email logins — for as long as it stays plugged in.",
+      opts: {A:"Spyware",B:"Packet Sniffer",C:"Keylogger",D:"Back Door"},
+      ans: "C",
+      def: "Records computer activity, such as a user's keystrokes, e-mails sent and received, Web sites visited, and chat session participation."
+    },
+    500: {
+      q: "A student visited a website to stream a free movie. Three days later, oversized pop-up windows took over her screen: 'YOUR COMPUTER HAS BEEN INFECTED WITH 47 VIRUSES! You have 48 hours to purchase PC Defender Pro for $49.99 or your files will be permanently deleted and legal action will begin.' The software was completely fake — designed purely to frighten people into paying.",
+      opts: {A:"Ransomware",B:"Adware",C:"Scareware",D:"Trojan Horse"},
+      ans: "C",
+      def: "Malicious software of no benefit and is sold using scare tactics."
+    }
+  },
+  'Technical Attacks': {
+    100: {
+      q: "In October 2016, the Mirai malware silently infected hundreds of thousands of home devices — baby monitors, security cameras, and DVRs. On October 21st, all of them simultaneously fired massive amounts of traffic at a single DNS company called Dyn. Twitter, Netflix, Spotify, Reddit, and CNN went dark for millions of users on the East Coast for nearly an entire day.",
+      opts: {A:"Hijacking",B:"Denial-of-Service (DoS) Attack",C:"SQL Injection",D:"Botnet"},
+      ans: "B",
+      def: "A constant stream of requests made to a Web-server (usually via a Botnet) that overwhelms and shuts down service."
+    },
+    200: {
+      q: "In 2016, a finance employee at a European aerospace company received what appeared to be an urgent email from the parent company's chairman, authorizing a confidential wire transfer for a secret acquisition. A follow-up call from the company's lawyer confirmed the instructions — but both the email and the phone call were faked. The company wired €42 million to accounts in Asia before the fraud was discovered.",
+      opts: {A:"Phishing",B:"Identity Theft",C:"Email Spoofing",D:"Masquerading"},
+      ans: "C",
+      def: "E-mail sender appears as if it comes from a different source."
+    },
+    300: {
+      q: "In 2012, attackers broke into LinkedIn's servers and stole millions of hashed passwords. When cybersecurity researchers analyzed the file posted online, they cracked 90% of the passwords within hours by automatically testing billions of combinations against the hashes. By 2016, it emerged that the true scope was 117 million accounts — and passwords like '123456' and 'linkedin' were among the first to fall.",
+      opts: {A:"Dictionary Attack",B:"SQL Injection",C:"Password Cracking",D:"Hacking"},
+      ans: "C",
+      def: "Penetrating system security to steal passwords (brute force technique)."
+    },
+    400: {
+      q: "In 2015, security researchers discovered that Lenovo was shipping laptops with pre-installed software called Superfish that quietly inserted itself into every encrypted web session the user opened — including banking sites. It replaced legitimate security certificates with its own, intercepted all HTTPS traffic, and injected advertisements. Worse, its private key was the same on every laptop, so anyone on the same public WiFi could intercept traffic from any Superfish-equipped machine.",
+      opts: {A:"Packet Sniffing",B:"Eavesdropping",C:"Email Spoofing",D:"Man-in-the-Middle"},
+      ans: "D",
+      def: "A hacker places themselves between client and host."
+    },
+    500: {
+      q: "By 2009, the Zeus malware had quietly infected 3.6 million computers in the United States alone, hiding in email attachments and drive-by downloads. Each infected machine silently reported to a central command server and received orders to steal online banking login credentials from its owner. In one documented campaign, Zeus drained $70 million from small U.S. businesses and municipalities before a joint FBI and Europol takedown.",
+      opts: {A:"Hijacking",B:"Botnet",C:"DoS Attack",D:"Worm"},
+      ans: "B",
+      def: "A network of hijacked computers that carry out processes without users' knowledge."
+    }
+  },
+  'Cyber Fraud & Extortion': {
+    100: {
+      q: "In 2018, the FBI disrupted a criminal operation called '3ve' that had secretly infected 1.7 million computers and directed them to generate fake clicks on online advertisements — none of which any human ever saw. The scheme defrauded advertising networks out of $36 million by making automated systems believe real people were viewing and clicking ads.",
+      opts: {A:"Botnet",B:"Internet Auction Fraud",C:"Click Fraud",D:"Spamming"},
+      ans: "C",
+      def: "Manipulating the number of times an ad is clicked on to inflate advertising bills."
+    },
+    200: {
+      q: "A man created 58,000 fake bank and brokerage accounts using false names, addresses, and Social Security numbers. When the financial institutions made micro-deposits of less than $1 to verify the accounts were real, he kept the tiny amounts rather than returning them. Over time, the pennies accumulated into thousands of dollars — and no individual bank noticed anything suspicious.",
+      opts: {A:"Hacking",B:"Identity Theft",C:"Salami Technique",D:"Round-Down Fraud"},
+      ans: "C",
+      def: "Taking small amounts from many different accounts."
+    },
+    300: {
+      q: "In November 2014, hackers calling themselves the 'Guardians of Peace' broke into Sony Pictures' network and stole unreleased films, internal executive emails, and Social Security numbers of 47,000 current and former employees. They then threatened to release everything publicly unless Sony cancelled the theatrical release of a comedy film. When Sony refused, the leaked emails created an international PR disaster.",
+      opts: {A:"Ransomware",B:"Internet Misinformation",C:"Cyber Extortion",D:"Economic Espionage"},
+      ans: "C",
+      def: "Requiring a company to pay money to keep the extortionist from harming a computer or person."
+    },
+    400: {
+      q: "In December 2022, the DOJ charged eight social media personalities who had amassed large followings on Twitter and Discord for stock tips. Their method was simple: quietly buy shares in obscure, low-priced stocks, then post enthusiastic buy recommendations to hundreds of thousands of followers. As prices surged, they sold their shares for millions in profit — and their followers were left holding stocks that immediately crashed back to nearly nothing.",
+      opts: {A:"Click Fraud",B:"Internet Auction Fraud",C:"Internet Pump-and-Dump",D:"Posing"},
+      ans: "C",
+      def: "Using the Internet to pump up the price of a stock and then selling it."
+    },
+    500: {
+      q: "In 2019, the DOJ charged a former engineer who had spent two decades at GE Aviation. Before leaving to form a competing company backed by a Chinese businessman, he systematically emailed himself hundreds of confidential files containing proprietary turbine blade designs and manufacturing specifications. Prosecutors said the stolen technology had taken GE years and millions of dollars to develop.",
+      opts: {A:"Cyber Extortion",B:"Identity Theft",C:"Hacking",D:"Economic Espionage"},
+      ans: "D",
+      def: "Theft of information, trade secrets, and intellectual property."
+    }
+  }
+};
+
+/* ════════════════════════════════════════════════
+   GAME STATE
+════════════════════════════════════════════════ */
+let usedCells = CATEGORIES.map(() => POINTS.map(() => false));
+let teams = [
+  { name: 'Team 1', score: 0 },
+  { name: 'Team 2', score: 0 },
+  { name: 'Team 3', score: 0 },
+  { name: 'Team 4', score: 0 }
+];
+let currentQ = null;   // {cat, pts, catIdx, ptIdx, q, opts, ans, def}
+let currentSel = null; // {catIdx, ptIdx}
+let buzzedTeam = null; // name string
+let displayMode = 'board'; // 'board' | 'question' | 'answer'
+let sse;
+
+/* ════════════════════════════════════════════════
+   BOARD RENDERING
+════════════════════════════════════════════════ */
+function renderBoard() {
+  const grid = document.getElementById('board-grid');
+  grid.innerHTML = '';
+  // headers
+  CATEGORIES.forEach((cat, ci) => {
+    const el = document.createElement('div');
+    el.className = 'bh';
+    el.textContent = cat;
+    grid.appendChild(el);
+  });
+  // cells
+  POINTS.forEach((pts, pi) => {
+    CATEGORIES.forEach((cat, ci) => {
+      const el = document.createElement('div');
+      const isUsed = usedCells[ci][pi];
+      const isSel = currentSel && currentSel.catIdx === ci && currentSel.ptIdx === pi;
+      el.className = 'bc' + (isUsed ? ' used' : '') + (isSel ? ' sel' : '');
+      el.textContent = isUsed ? '' : '$' + pts;
+      if (!isUsed) el.onclick = () => selectCell(ci, pi);
+      grid.appendChild(el);
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════
+   SELECT CELL
+════════════════════════════════════════════════ */
+function selectCell(ci, pi) {
+  const cat = CATEGORIES[ci];
+  const pts = POINTS[pi];
+  currentSel = { catIdx: ci, ptIdx: pi };
+  const qdata = BOARD_DATA[cat][pts];
+  currentQ = { cat, pts, catIdx: ci, ptIdx: pi, ...qdata };
+  displayMode = 'board';
+  resetButtonStates();
+  renderBoard();
+  renderQuestionPanel();
+}
+
+function renderQuestionPanel() {
+  if (!currentQ) return;
+  document.getElementById('qp-ph').style.display = 'none';
+  document.getElementById('qp-content').style.display = '';
+  document.getElementById('qp-hdr').textContent = currentQ.cat + ' — $' + currentQ.pts;
+  document.getElementById('qp-text').textContent = currentQ.q;
+  document.getElementById('qp-def').textContent = currentQ.def;
+
+  const grid = document.getElementById('opts-grid');
+  grid.innerHTML = '';
+  ['A','B','C','D'].forEach(l => {
+    const el = document.createElement('div');
+    el.className = 'opt' + (l === currentQ.ans ? ' correct' : '');
+    el.innerHTML = `<span class="ltr">${l}</span><span class="otxt">${currentQ.opts[l]}</span>`;
+    grid.appendChild(el);
+  });
+}
+
+function resetButtonStates() {
+  document.getElementById('btn-showq').classList.remove('active');
+  document.getElementById('btn-showa').classList.remove('active');
+}
+
+/* ════════════════════════════════════════════════
+   NTFY MESSAGING
+════════════════════════════════════════════════ */
+function ntfySend(body) {
+  fetch(NTFY_URL, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' } }).catch(() => {});
+}
+
+function pushToDisplay(mode) {
+  if (!currentQ) return;
+  displayMode = mode;
+  const payload = JSON.stringify({
+    mode, q: currentQ.q, opts: currentQ.opts,
+    ans: currentQ.ans, def: currentQ.def,
+    cat: currentQ.cat, pts: currentQ.pts
+  });
+  ntfySend('DISPLAY:' + payload);
+  document.getElementById('btn-showq').classList.toggle('active', mode === 'question');
+  document.getElementById('btn-showa').classList.toggle('active', mode === 'answer');
+}
+
+function clearDisplay() {
+  ntfySend('DISPLAY:' + JSON.stringify({ mode: 'clear' }));
+  displayMode = 'board';
+  resetButtonStates();
+}
+
+function pushBoardState() {
+  const payload = JSON.stringify({
+    used: usedCells,
+    teams: teams.map(t => ({ name: t.name, score: t.score }))
+  });
+  ntfySend('BOARD:' + payload);
+}
+
+/* ════════════════════════════════════════════════
+   BUZZ
+════════════════════════════════════════════════ */
+function handleBuzz(name) {
+  if (buzzedTeam) return; // first buzz wins
+  buzzedTeam = name;
+  const disp = document.getElementById('buzz-disp');
+  disp.className = 'buzz-disp';
+  disp.textContent = '🔔 ' + name;
+  // highlight matching team row
+  document.querySelectorAll('.team-row').forEach(row => {
+    const inp = row.querySelector('.t-name');
+    if (inp && inp.value.trim() === name.trim()) row.classList.add('buzzed');
+    else row.classList.remove('buzzed');
+  });
+}
+
+function judgeAnswer(correct) {
+  if (!currentQ || !buzzedTeam) return;
+  const pts = currentQ.pts;
+  // find matching team
+  const team = teams.find(t => t.name.trim() === buzzedTeam.trim());
+  if (team) {
+    team.score += correct ? pts : -pts;
+    renderTeams();
+    pushBoardState();
+  }
+  resetBuzzers();
+  if (correct) markUsed();
+}
+
+function resetBuzzers() {
+  buzzedTeam = null;
+  const disp = document.getElementById('buzz-disp');
+  disp.className = 'buzz-disp empty';
+  disp.textContent = 'Waiting…';
+  document.querySelectorAll('.team-row').forEach(row => row.classList.remove('buzzed'));
+  ntfySend('RESET');
+}
+
+/* ════════════════════════════════════════════════
+   BOARD MANAGEMENT
+════════════════════════════════════════════════ */
+function markUsed() {
+  if (!currentQ) return;
+  usedCells[currentQ.catIdx][currentQ.ptIdx] = true;
+  currentSel = null;
+  renderBoard();
+  pushBoardState();
+  // hide question panel
+  document.getElementById('qp-ph').style.display = '';
+  document.getElementById('qp-content').style.display = 'none';
+  currentQ = null;
+  resetButtonStates();
+}
+
+function newGame() {
+  if (!confirm('Start a new game? This will reset the board and all scores.')) return;
+  usedCells = CATEGORIES.map(() => POINTS.map(() => false));
+  teams.forEach(t => t.score = 0);
+  currentQ = null;
+  currentSel = null;
+  buzzedTeam = null;
+  displayMode = 'board';
+  renderBoard();
+  renderTeams();
+  document.getElementById('qp-ph').style.display = '';
+  document.getElementById('qp-content').style.display = 'none';
+  document.getElementById('buzz-disp').className = 'buzz-disp empty';
+  document.getElementById('buzz-disp').textContent = 'Waiting…';
+  resetButtonStates();
+  pushBoardState();
+}
+
+function resetScores() {
+  if (!confirm('Reset all scores to zero?')) return;
+  teams.forEach(t => t.score = 0);
+  renderTeams();
+  pushBoardState();
+}
+
+/* ════════════════════════════════════════════════
+   TEAM MANAGEMENT
+════════════════════════════════════════════════ */
+function addTeam() {
+  teams.push({ name: 'Team ' + (teams.length + 1), score: 0 });
+  renderTeams();
+}
+
+function removeTeam(idx) {
+  if (teams.length <= 1) return;
+  teams.splice(idx, 1);
+  renderTeams();
+}
+
+function syncTeam(idx) {
+  const row = document.getElementById('trow-' + idx);
+  if (!row) return;
+  const nameVal = row.querySelector('.t-name').value;
+  const scoreVal = parseInt(row.querySelector('.t-score').value) || 0;
+  teams[idx].name = nameVal;
+  teams[idx].score = scoreVal;
+}
+
+function saveScoreEdit(idx) {
+  syncTeam(idx);
+  pushBoardState();
+}
+
+function renderTeams() {
+  const list = document.getElementById('teams-list');
+  list.innerHTML = '';
+  teams.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    row.id = 'trow-' + i;
+    row.innerHTML = `
+      <input class="t-name" type="text" value="${escHtml(t.name)}"
+        onblur="saveScoreEdit(${i})" onchange="syncTeam(${i})">
+      <input class="t-score" type="number" value="${t.score}"
+        onblur="saveScoreEdit(${i})" onchange="syncTeam(${i})">
+      <button class="t-del" onclick="removeTeam(${i})" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ════════════════════════════════════════════════
+   NTFY CONNECTION
+════════════════════════════════════════════════ */
+function connectNtfy() {
+  if (sse) { try { sse.close(); } catch {} }
+  sse = new EventSource(NTFY_URL + '/sse');
+  sse.onopen = () => {
+    const s = document.getElementById('ntfy-status');
+    s.textContent = 'Connected'; s.className = 'ntfy-status ok';
+  };
+  sse.onerror = () => {
+    const s = document.getElementById('ntfy-status');
+    s.textContent = 'Reconnecting…'; s.className = 'ntfy-status';
+    setTimeout(connectNtfy, 4000);
+  };
+  sse.onmessage = e => {
+    try {
+      const data = JSON.parse(e.data);
+      const msg = (data.message || '').trim();
+      if (msg.startsWith('BUZZ:')) {
+        const parts = msg.split(':');
+        const name = parts.slice(2).join(':');
+        handleBuzz(name);
+      }
+      // ignore DISPLAY/BOARD/RESET echoes — we sent them
+    } catch {}
+  };
+}
+
+/* ════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════ */
+renderBoard();
+renderTeams();
+connectNtfy();
+</script>
+</body>
+</html>

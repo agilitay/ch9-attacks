@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buzz In — Ch9 Attacks</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    h1 { font-size: 1.3rem; margin-bottom: 0.4rem; text-align: center; }
+    .subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.8rem; text-align: center; }
+    .name-section { width: 100%; max-width: 360px; margin-bottom: 1.8rem; }
+    .name-section label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.4rem; }
+    .name-section input {
+      width: 100%; padding: 0.75rem 1rem;
+      border: 1px solid #334155; border-radius: 8px;
+      background: #1e293b; color: #f1f5f9; font-size: 1rem;
+    }
+    .name-section input:focus { outline: none; border-color: #3b82f6; }
+    .buzz-btn {
+      width: 240px; height: 240px; border-radius: 50%; border: none;
+      font-size: 1.6rem; font-weight: 700; cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.15s;
+      background: #16a34a; color: white;
+      box-shadow: 0 0 0 8px #15803d, 0 8px 32px rgba(22,163,74,0.35);
+      line-height: 1.2;
+    }
+    .buzz-btn:active { transform: scale(0.95); }
+    .buzz-btn.buzzing {
+      background: #b45309; color: white;
+      box-shadow: 0 0 0 8px #92400e, 0 8px 32px rgba(180,83,9,0.4);
+      cursor: default;
+    }
+    .buzz-btn.locked {
+      background: #334155; color: #64748b;
+      box-shadow: 0 0 0 8px #1e293b; cursor: not-allowed;
+    }
+    .status { margin-top: 1.4rem; font-size: 0.95rem; color: #94a3b8; min-height: 1.4rem; text-align: center; }
+    .reset-btn {
+      margin-top: 1.5rem; padding: 0.5rem 1.4rem;
+      background: #1e293b; color: #64748b;
+      border: 1px solid #334155; border-radius: 6px;
+      font-size: 0.85rem; cursor: pointer;
+    }
+    .conn-dot {
+      position: fixed; top: 0.75rem; right: 0.75rem;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #475569;
+    }
+    .conn-dot.ok { background: #16a34a; }
+  </style>
+</head>
+<body>
+  <div class="conn-dot" id="conn-dot"></div>
+  <h1>🔐 Chapter 9</h1>
+  <p class="subtitle">Guess the Attack</p>
+
+  <div class="name-section">
+    <label>Your Team Name</label>
+    <input id="team-name" type="text" placeholder="e.g. Team Alpha" maxlength="30"
+      onkeydown="if(event.key==='Enter') document.getElementById('buzz-btn').focus()">
+  </div>
+
+  <button class="buzz-btn" id="buzz-btn" onclick="buzz()">BUZZ IN</button>
+  <div class="status" id="status"></div>
+  <button class="reset-btn" onclick="resetBuzz()">Reset</button>
+
+  <script>
+    const NTFY_URL = 'https://ntfy.sh/ch9attacks-agilitay-room1';
+    let buzzed = false;
+    let sse;
+
+    function getTeamName() {
+      return (document.getElementById('team-name').value || '').trim() || 'Anonymous';
+    }
+
+    function buzz() {
+      if (buzzed) return;
+      const name = getTeamName();
+      buzzed = true;
+      const btn = document.getElementById('buzz-btn');
+      btn.classList.add('buzzing');
+      btn.textContent = '🔔 BUZZED!';
+      document.getElementById('status').textContent = `Sent as "${name}"`;
+      fetch(NTFY_URL, {
+        method: 'POST',
+        body: `BUZZ:G1:${name}`,
+        headers: { 'Content-Type': 'text/plain' }
+      }).catch(() => {
+        document.getElementById('status').textContent = 'Error — check connection';
+      });
+    }
+
+    function resetBuzz() {
+      buzzed = false;
+      const btn = document.getElementById('buzz-btn');
+      btn.className = 'buzz-btn';
+      btn.textContent = 'BUZZ IN';
+      document.getElementById('status').textContent = '';
+    }
+
+    function connectNtfy() {
+      if (sse) { try { sse.close(); } catch {} }
+      sse = new EventSource(NTFY_URL + '/sse');
+      sse.onopen = () => document.getElementById('conn-dot').className = 'conn-dot ok';
+      sse.onerror = () => {
+        document.getElementById('conn-dot').className = 'conn-dot';
+        setTimeout(connectNtfy, 3000);
+      };
+      sse.onmessage = e => {
+        try {
+          const data = JSON.parse(e.data);
+          const msg = (data.message || '').trim();
+          if (msg === 'RESET') resetBuzz();
+        } catch {}
+      };
+    }
+    connectNtfy();
+  </script>
+</body>
+</html>

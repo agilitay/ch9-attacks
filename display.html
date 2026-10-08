@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9 Attacks — Display</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0f1e;
+      color: #f1f5f9;
+    }
+
+    /* ── SCREEN SWITCHING ── */
+    .screen { display: none; width: 100vw; height: 100vh; }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* ── BOARD SCREEN ── */
+    #screen-board {
+      flex-direction: column;
+      justify-content: stretch;
+      padding: 12px;
+      gap: 8px;
+    }
+    .board-title {
+      text-align: center;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #fbbf24;
+      letter-spacing: 0.04em;
+      padding: 4px 0;
+      flex-shrink: 0;
+    }
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      flex: 1;
+    }
+    .board-cell-header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #1a3050 100%);
+      border: 1px solid #2d5a8e;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(0.6rem, 1.3vw, 1rem);
+      font-weight: 700;
+      text-align: center;
+      color: #93c5fd;
+      padding: 6px 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .board-cell-pts {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e3a5f 100%);
+      border: 1px solid #2d5a8e;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(1.4rem, 3.5vw, 2.8rem);
+      font-weight: 800;
+      color: #fbbf24;
+      cursor: default;
+      transition: background 0.2s;
+    }
+    .board-cell-pts.used {
+      background: #111827;
+      border-color: #1f2937;
+      color: #1f2937;
+    }
+    /* Score row */
+    .score-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .score-cell {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .score-cell .s-name { font-size: 0.7rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .score-cell .s-pts { font-size: 1.4rem; font-weight: 800; color: #fbbf24; }
+    .score-empty { opacity: 0; }
+    /* watermark */
+    .channel-tag {
+      position: fixed; bottom: 8px; right: 12px;
+      font-size: 0.65rem; color: #1f2937; pointer-events: none;
+    }
+
+    /* ── QUESTION SCREEN ── */
+    #screen-question {
+      flex-direction: column;
+      background: #0a0f1e;
+      padding: 0;
+    }
+    .q-header-bar {
+      background: linear-gradient(90deg, #1e3a8a 0%, #1e3a5f 100%);
+      padding: 14px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+    .q-category { font-size: 1.5rem; font-weight: 800; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em; }
+    .q-pts { font-size: 1.5rem; font-weight: 800; color: #fbbf24; }
+
+    .q-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 28px 16px;
+      gap: 16px;
+      min-height: 0;
+    }
+    .q-scenario {
+      font-size: clamp(1rem, 2.2vw, 1.5rem);
+      line-height: 1.55;
+      color: #e2e8f0;
+      flex: 0 1 auto;
+      overflow-y: auto;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .opt-card {
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .opt-card.correct {
+      background: #14532d;
+      border-color: #16a34a;
+    }
+    .opt-card.incorrect {
+      opacity: 0.4;
+    }
+    .opt-letter {
+      font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+      font-weight: 900;
+      color: #475569;
+      flex-shrink: 0;
+      width: 1.6em;
+      text-align: center;
+      line-height: 1;
+    }
+    .opt-card.correct .opt-letter { color: #4ade80; }
+    .opt-text {
+      font-size: clamp(0.95rem, 1.8vw, 1.3rem);
+      font-weight: 600;
+      color: #cbd5e1;
+      line-height: 1.3;
+    }
+    .opt-card.correct .opt-text { color: #f0fdf4; }
+
+    .definition-area {
+      background: #0d1b2e;
+      border-left: 4px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      flex-shrink: 0;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.4s, transform 0.4s;
+    }
+    .definition-area.visible { opacity: 1; transform: translateY(0); }
+    .def-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .def-text { font-size: clamp(0.95rem, 1.8vw, 1.25rem); color: #93c5fd; line-height: 1.4; }
+
+    /* ── BUZZ BANNER ── */
+    .buzz-banner {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #b45309;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      font-size: 1.4rem;
+      font-weight: 800;
+      transform: translateY(-100%);
+      transition: transform 0.3s;
+      z-index: 100;
+    }
+    .buzz-banner.show { transform: translateY(0); }
+
+    /* ── CONNECTION STATUS ── */
+    .conn-dot {
+      position: fixed; top: 8px; left: 8px;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #475569; z-index: 200;
+    }
+    .conn-dot.ok { background: #16a34a; }
+  </style>
+</head>
+<body>
+  <div class="conn-dot" id="conn-dot"></div>
+  <div class="buzz-banner" id="buzz-banner">🔔 —</div>
+
+  <!-- ── BOARD SCREEN ── -->
+  <div class="screen active" id="screen-board">
+    <div class="board-title">🔐 Chapter 9: Guess the Attack</div>
+    <div class="board-grid" id="board-grid"></div>
+    <div class="score-row" id="score-row"></div>
+    <div class="channel-tag">ntfy: ch9attacks-agilitay-room1</div>
+  </div>
+
+  <!-- ── QUESTION SCREEN ── -->
+  <div class="screen" id="screen-question">
+    <div class="q-header-bar">
+      <span class="q-category" id="q-category">—</span>
+      <span class="q-pts" id="q-pts"></span>
+    </div>
+    <div class="q-body">
+      <div class="q-scenario" id="q-scenario"></div>
+      <div class="options-grid" id="options-grid">
+        <div class="opt-card" id="opt-A"><span class="opt-letter">A</span><span class="opt-text"></span></div>
+        <div class="opt-card" id="opt-B"><span class="opt-letter">B</span><span class="opt-text"></span></div>
+        <div class="opt-card" id="opt-C"><span class="opt-letter">C</span><span class="opt-text"></span></div>
+        <div class="opt-card" id="opt-D"><span class="opt-letter">D</span><span class="opt-text"></span></div>
+      </div>
+      <div class="definition-area" id="definition-area">
+        <div class="def-label">Definition</div>
+        <div class="def-text" id="def-text"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const NTFY_URL = 'https://ntfy.sh/ch9attacks-agilitay-room1';
+    const CATEGORIES = ['System Attacks','Social Engineering','Malware','Technical Attacks','Cyber Fraud & Extortion'];
+    const POINTS = [100,200,300,400,500];
+
+    let usedCells = CATEGORIES.map(() => POINTS.map(() => false));
+    let teams = [];
+    let buzzTimer = null;
+    let sse;
+
+    /* ── BOARD RENDERING ── */
+    function renderBoard() {
+      const grid = document.getElementById('board-grid');
+      grid.innerHTML = '';
+      // header row
+      CATEGORIES.forEach(cat => {
+        const el = document.createElement('div');
+        el.className = 'board-cell-header';
+        el.textContent = cat;
+        grid.appendChild(el);
+      });
+      // point rows
+      POINTS.forEach((pts, pi) => {
+        CATEGORIES.forEach((cat, ci) => {
+          const el = document.createElement('div');
+          el.className = 'board-cell-pts' + (usedCells[ci][pi] ? ' used' : '');
+          el.textContent = usedCells[ci][pi] ? '' : '$' + pts;
+          grid.appendChild(el);
+        });
+      });
+
+      // score row
+      const sr = document.getElementById('score-row');
+      sr.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const t = teams[i];
+        const el = document.createElement('div');
+        if (t) {
+          el.className = 'score-cell';
+          el.innerHTML = `<div class="s-name">${t.name}</div><div class="s-pts">$${t.score}</div>`;
+        } else {
+          el.className = 'score-cell score-empty';
+          el.innerHTML = '<div class="s-pts">—</div>';
+        }
+        sr.appendChild(el);
+      }
+    }
+
+    /* ── SCREEN SWITCHING ── */
+    function show(name) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + name).classList.add('active');
+    }
+
+    /* ── MESSAGE HANDLERS ── */
+    function handleDisplay(payload) {
+      const { mode, q, opts, ans, def, cat, pts } = payload;
+      if (mode === 'clear') { show('board'); return; }
+
+      // populate question screen
+      document.getElementById('q-category').textContent = cat;
+      document.getElementById('q-pts').textContent = '$' + pts;
+      document.getElementById('q-scenario').textContent = q;
+
+      ['A','B','C','D'].forEach(letter => {
+        const card = document.getElementById('opt-' + letter);
+        card.querySelector('.opt-text').textContent = opts[letter];
+        card.classList.remove('correct', 'incorrect');
+        if (mode === 'answer') {
+          if (letter === ans) card.classList.add('correct');
+          else card.classList.add('incorrect');
+        }
+      });
+
+      const defArea = document.getElementById('definition-area');
+      if (mode === 'answer') {
+        document.getElementById('def-text').textContent = def;
+        defArea.classList.add('visible');
+      } else {
+        defArea.classList.remove('visible');
+      }
+
+      show('question');
+    }
+
+    function handleBoard(payload) {
+      if (payload.used) usedCells = payload.used;
+      if (payload.teams) teams = payload.teams;
+      renderBoard();
+    }
+
+    function handleBuzz(msg) {
+      // BUZZ:G1:TeamName
+      const parts = msg.split(':');
+      const name = parts.slice(2).join(':');
+      const banner = document.getElementById('buzz-banner');
+      banner.textContent = '🔔 ' + name;
+      banner.classList.add('show');
+      if (buzzTimer) clearTimeout(buzzTimer);
+      buzzTimer = setTimeout(() => banner.classList.remove('show'), 4000);
+    }
+
+    /* ── NTFY CONNECTION ── */
+    function connectNtfy() {
+      if (sse) { try { sse.close(); } catch {} }
+      sse = new EventSource(NTFY_URL + '/sse');
+      sse.onopen = () => document.getElementById('conn-dot').className = 'conn-dot ok';
+      sse.onerror = () => {
+        document.getElementById('conn-dot').className = 'conn-dot';
+        setTimeout(connectNtfy, 4000);
+      };
+      sse.onmessage = e => {
+        try {
+          const data = JSON.parse(e.data);
+          const msg = (data.message || '').trim();
+          if (msg.startsWith('DISPLAY:')) handleDisplay(JSON.parse(msg.slice(8)));
+          else if (msg.startsWith('BOARD:')) handleBoard(JSON.parse(msg.slice(6)));
+          else if (msg.startsWith('BUZZ:')) handleBuzz(msg);
+          else if (msg === 'RESET') { show('board'); document.getElementById('buzz-banner').classList.remove('show'); }
+        } catch(err) { console.error('msg parse error', err); }
+      };
+    }
+
+    renderBoard();
+    connectNtfy();
+  </script>
+</body>
+</html>
