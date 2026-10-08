@@ -527,7 +527,7 @@ function judgeAnswer(correct) {
   if (!currentQ || !buzzedTeam) return;
   const pts = currentQ.pts;
   // find matching team
-  const team = teams.find(t => t.name.trim() === buzzedTeam.trim());
+  const team = teams.find(t => t.name.trim().toLowerCase() === buzzedTeam.trim().toLowerCase());
   if (team) {
     team.score += correct ? pts : -pts;
     renderTeams();
